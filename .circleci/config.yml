@@ -1,0 +1,143 @@
+version: 2.1
+
+commands:
+  install_awscli:
+    description: Install AWS CLI v2
+    steps:
+      - run:
+          name: Install AWS CLI v2
+          command: |
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
+
+  install_kubectl:
+    description: Intsall Kubectl v1.19
+    steps:
+      - run:
+          name: Install Kubectl v1.19
+          command: |
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+  install_eksctl:
+    description: Intsall eksctl
+    steps:
+      - run:
+          name: Install eksctl
+          command: |
+            curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+            sudo mv /tmp/eksctl /usr/local/bin
+
+jobs:
+  docker-build:
+    docker:
+      - image: python:3.7.3-stretch
+
+    steps:
+      - checkout
+      - restore_cache:
+          keys: [Dockerfile-lint]
+
+      # run build
+      - run:
+          name: install dependencies
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            make install
+      
+      - save_cache:
+          paths:
+            - ./venv
+          key: Dockerfile-lint
+
+      # run lint
+      - run:
+          name: run lint
+          command: |
+            . venv/bin/activate
+            make lint
+
+  upload-docker:
+    docker:
+      - image: circleci/golang:1.15
+        auth:
+            username: $DOCKERHUB_USERNAME
+            password: $DOCKERHUB_PASSWORD
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build docker image
+          command: |
+            docker build --tag=$DOCKER_IMAGE_NAME .
+            docker image ls
+      - run:
+          name: Upload Docker to Dockerhub
+          command: |
+            echo "Docker ID and Image: $DOCKER_IMAGE_NAME"
+            echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin
+            dockerpath=vwadhwa3/$DOCKER_IMAGE_NAME
+            docker tag $DOCKER_IMAGE_NAME $dockerpath
+            docker push $dockerpath
+
+  deploy-app-eks:
+    docker:
+      - image: ubuntu:18.04
+    working_directory: ~/repo
+    steps:
+      - checkout
+      - run:
+          name: Install Dependencies for Kube configuration
+          command: |
+            # install sudo package 
+            apt-get -y -qq update
+            apt-get -y install sudo
+            # extras for below installs
+            sudo apt-get -y install curl gnupg2 software-properties-common unzip less git dos2unix
+
+      - install_awscli
+      - install_kubectl
+      - install_eksctl
+
+      - run:
+          name: Install AWS EKS cluster
+          command: |
+            export TERM=xterm
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+            aws configure set default.region $AWS_DEFAULT_REGION
+            aws cloudformation list-exports > cluster.txt
+            cat cluster.txt
+            if [ $(grep -i "eksctl-capstone-pickcolor-eks" cluster.txt | wc -l) -ge 1 ]
+              then
+              echo "already EKS Cluster exists in environment"
+              else
+              echo "creating the EKS Cluster"
+              eksctl create cluster --name $ENVIRONMENT_NAME-eks --version 1.19 --region $AWS_DEFAULT_REGION --nodegroup-name $ENVIRONMENT_NAME-node --node-type t3.large --nodes-min 2 --nodes-max 4 --managed
+            fi
+
+      - run:
+          name: Update Kube cluster
+          command: |
+            export TERM=xterm
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+            aws configure set default.region $AWS_DEFAULT_REGION
+            aws eks update-kubeconfig --region $AWS_DEFAULT_REGION --name $ENVIRONMENT_NAME-eks
+            kubectl apply -f deploy.yaml -f  service.yaml
+            kubectl get deployment
+            kubectl get nodes -o wide
+            kubectl get pods -o wide
+            kubectl get all
+
+workflows:
+  default:
+    jobs:
+      - docker-build
+      - upload-docker:
+          requires: [docker-build]
+      - deploy-app-eks:
+          requires: [docker-build]
