@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capstone-paint-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: capstone-paint
+  template:
+    metadata:
+      labels:
+        app: capstone-paint
+    spec:
+      containers:
+        - name: capstone-paint
+          image: vwadhwa3/paint
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
