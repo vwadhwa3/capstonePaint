@@ -57,7 +57,7 @@ jobs:
           name: run lints
           command: |
             . venv/bin/activate
-            make lints
+            make lint
 
   upload-docker:
     docker:
