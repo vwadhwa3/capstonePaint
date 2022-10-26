@@ -14,8 +14,10 @@ test:
 	#python -m pytest --nbval notebook.ipynb
 
 lint:
-	# See local hadolint install instructions:   https://github.com/hadolint/hadolint
-	# This is linter for Dockerfiles
-	/bin/hadolint Dockerfile
-
+	# # See local hadolint install instructions:   https://github.com/hadolint/hadolint
+	# # This is linter for Dockerfiles
+	# /bin/hadolint Dockerfile
+	./hadolint Dockerfile
+	pylint --disable=R,C,W1203 app.py
 all: install lint test
+
