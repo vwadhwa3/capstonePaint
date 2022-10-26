@@ -45,7 +45,7 @@ jobs:
           command: |
             python3 -m venv venv
             . venv/bin/activate
-            make installs
+            make install
       
       - save_cache:
           paths:
@@ -54,7 +54,7 @@ jobs:
 
       # run lint
       - run:
-          name: run lint
+          name: run lints
           command: |
             . venv/bin/activate
             make lint
