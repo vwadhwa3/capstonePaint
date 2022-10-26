@@ -12,10 +12,10 @@ commands:
             sudo ./aws/install
 
   install_kubectl:
-    description: Intsall Kubectl v1.19
+    description: Intsall Kubectl v1.23
     steps:
       - run:
-          name: Install Kubectl v1.19
+          name: Install Kubectl v1.23
           command: |
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
@@ -116,7 +116,7 @@ jobs:
               echo "already EKS Cluster exists in environment"
               else
               echo "creating the EKS Cluster"
-              eksctl create cluster --name $ENVIRONMENT_NAME-eks --version 1.19 --region $AWS_DEFAULT_REGION --nodegroup-name $ENVIRONMENT_NAME-node --node-type t3.large --nodes-min 2 --nodes-max 4 --managed
+              eksctl create cluster --name $ENVIRONMENT_NAME-eks --version 1.23 --region $AWS_DEFAULT_REGION --nodegroup-name $ENVIRONMENT_NAME-node --node-type t3.large --nodes-min 2 --nodes-max 4 --managed
             fi
 
       - run:
